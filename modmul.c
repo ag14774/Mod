@@ -143,7 +143,7 @@ int main( int argc, char* argv[] ) {
     abort();
   }
 
-  if     ( !strcmp( argv[ 1 ], "stage1" ) ) {
+  if( !strcmp( argv[ 1 ], "stage1" ) ) {
     stage1();
   }
   else if( !strcmp( argv[ 1 ], "stage2" ) ) {

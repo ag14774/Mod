@@ -8,6 +8,17 @@
 #include <string.h>
 #include    <gmp.h>
 
+#define WINDOW_SIZE 4
+#define TABLE_SIZE (1<<(WINDOW_SIZE-1)) /*Half the size. Only odd numbers*/
+
+int mpzn_extract_bits(const mpz_t in, int start, int end);
+void mpzn_add(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N);
+void mpzn_sub(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N);
+void mpzn_mul(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N);
+void mpzn_pow(mpz_t out, const mpz_t b, const mpz_t e, const mpz_t N);
+
+/*********************************************/
+
 typedef struct {
   mpz_t N;
   mpz_t e;

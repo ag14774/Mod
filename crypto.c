@@ -1,5 +1,90 @@
 #include "crypto.h"
 
+/*start from left to right so start>end*/
+int mpzn_extract_bits(const mpz_t in, int start, int end) {
+  int r = 0;
+  for(int i=start;i>=end;i--) {
+    r <<= 1;
+    r += mpz_tstbit(in,i);
+  }
+  return r;
+}
+
+void mpzn_add(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N) {
+  mpz_add(out,a,b);
+  if(mpz_cmp(out,N) >= 0) {
+    mpz_sub(out, out, N);
+  }
+}
+
+void mpzn_sub(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N) {
+
+  if(mpz_cmp(b,a) > 0) {
+    mpz_sub(out, b, a);
+    mpz_sub(out, N, out);
+  }
+  else {
+    mpz_sub(out, a, b);
+  }
+
+}
+
+void mpzn_mul(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N) {
+  mpz_mul(out, a, b);
+  mpz_mod(out, out, N);
+}
+
+void mpzn_pow(mpz_t out, const mpz_t b, const mpz_t e, const mpz_t N) {
+  mpz_t table[TABLE_SIZE];
+  mpz_t temp;
+  int32_t i; //bit index
+  int32_t l; //end of window index
+  int32_t u; //window in decimal
+
+  mpz_init(temp);
+  mpz_init_set(table[0], b);
+  mpzn_mul(temp, b, b, N); //make sure it is okay to call with same args
+
+  /*Precompute table*/
+  for(int k=1;k<TABLE_SIZE;k++) {
+    mpz_init(table[k]);
+    mpzn_mul(table[k], table[k-1], temp, N);
+  }
+
+  mpz_set_ui(temp, 1);
+  i = mpz_sizeinbase(e, 2) - 1;
+
+  while(i >= 0) {
+
+    char bit = mpz_tstbit(e, i);
+    if(!bit) {
+      l = i;
+      u = 0;
+    }
+    else {
+      l = i - WINDOW_SIZE + 1;
+      l = l&~(l>>31); //max(l,0)
+      while (!mpz_tstbit(e, l)) l++;
+      u = mpzn_extract_bits(e, i, l);
+    }
+
+    for(int k=0;k<i-l+1;k++) {
+      mpzn_mul(temp,temp,temp,N); //make sure it is okay to call with same args
+    }
+
+    if(u != 0) {
+      mpzn_mul(temp, temp, table[(u-1)/2], N);
+    }
+    
+    i = l - 1;
+  }
+  mpz_set(out, temp);
+
+  mpz_clear(temp);
+  for(int k=0;k<TABLE_SIZE;k++) mpz_clear(table[k]);
+
+}
+
 void rsa_pk_init(rsa_pk_t rsa_pk) {
   mpz_inits(rsa_pk->N, rsa_pk->e, NULL);
 }
@@ -46,21 +131,21 @@ void rsa_sk_set(rsa_sk_t rsa_sk, const mpz_t N, const mpz_t d, const mpz_t p,
 }
 
 void rsa_encrypt(mpz_t c, const rsa_pk_t rsa_pk, const mpz_t m) {
-  mpz_powm(c, m, rsa_pk->e, rsa_pk->N);
+  mpzn_pow(c, m, rsa_pk->e, rsa_pk->N);
 }
 
 void rsa_decrypt(mpz_t m, const rsa_sk_t rsa_sk, const mpz_t c) {
   mpz_t a,b;
   mpz_inits(a, b, NULL);
 
-  mpz_powm(a, c, rsa_sk->d_q, rsa_sk->q);
+  mpzn_pow(a, c, rsa_sk->d_q, rsa_sk->q);
   mpz_mul(b, rsa_sk->p, rsa_sk->i_p);
   mpz_mod(b, b, rsa_sk->N);
   mpz_mul(m, a, b);
 
   mpz_mod(m, m, rsa_sk->N);
 
-  mpz_powm(a, c, rsa_sk->d_p, rsa_sk->p);
+  mpzn_pow(a, c, rsa_sk->d_p, rsa_sk->p);
   mpz_mul(b, rsa_sk->q, rsa_sk->i_q);
   mpz_mod(b, b, rsa_sk->N);
   mpz_addmul(m, a, b);
@@ -106,8 +191,8 @@ void elg_encrypt2(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m, con
   mpz_init( rq );
 
   mpz_mod(rq, r, elg_pk->q);
-  mpz_powm(c1, elg_pk->g, rq, elg_pk->p);
-  mpz_powm(c2, elg_pk->key, rq, elg_pk->p);
+  mpzn_pow(c1, elg_pk->g, rq, elg_pk->p);
+  mpzn_pow(c2, elg_pk->key, rq, elg_pk->p);
   mpz_mul(c2, c2, m);
   mpz_mod(c2, c2, elg_pk->p);
 
@@ -118,7 +203,7 @@ void elg_decrypt(mpz_t m, const elg_key_t elg_sk, const mpz_t c1, const mpz_t c2
   mpz_t c1_i_x;
   mpz_init( c1_i_x );
 
-  mpz_powm(c1_i_x, c1, elg_sk->i_x, elg_sk->p);
+  mpzn_pow(c1_i_x, c1, elg_sk->i_x, elg_sk->p);
   mpz_mul(m, c2, c1_i_x);
   mpz_mod(m, m, elg_sk->p);
 
