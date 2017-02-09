@@ -87,8 +87,6 @@ void mont_red(mpz_t out, const mpz_t t, const zn_mont_t mont) {
     mpz_addmul_ui(temp, temp2, u);
     mpz_mul( base_i, base_i, base );
   }
-
-  //mpz_mul( base_i, base_i, base );
   mpz_divexact( temp, temp, base_i );
   if (mpz_cmp(temp, mont->N) >= 0) {
     mpz_sub(temp, temp, mont->N);
@@ -185,8 +183,7 @@ void mpzn_mul(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N) {
   mpzn_mul2(out, a, b, mont);
 
   mont_clear( mont );
-  // mpz_mul(out, a, b);
-  // mpz_mod(out, out, N);
+
 }
 
 void mpzn_mul2(mpz_t out, const mpz_t a, const mpz_t b, const zn_mont_t mont) {
@@ -226,10 +223,18 @@ void mpzn_pow2(mpz_t out, const mpz_t b, const mpz_t e, const zn_mont_t mont) {
 }
 
 void mpzn_mod(mpz_t out, const mpz_t t, const mpz_t N) {
+  zn_mont_t zN;
+  mont_init( zN, N );
 
+  mpzn_mod2( out, t, zN );
+
+  mont_clear( zN );
 }
 
 void mpzn_mod2(mpz_t out, const mpz_t t, const zn_mont_t mont) {
+
+  mont_red(out, t, mont);
+  mont_mul(out, out, mont->rho_sqr, mont);
 
 }
 
@@ -291,10 +296,8 @@ void rsa_decrypt(mpz_t m, const rsa_sk_t rsa_sk, const mpz_t c) {
   mont_init( zq, rsa_sk->q );
   mont_init( zp, rsa_sk->p );
 
-  mont_red(cq, c, zq);//c*r^-1
-  mont_red(cp, c, zp);//c*r^-1
-  mont_mul(cq, cq, zq->rho_sqr, zq);//cq
-  mont_mul(cp, cp, zp->rho_sqr, zp);//cp
+  mpzn_mod2(cq, c, zq);
+  mpzn_mod2(cp, c, zp);
 
   mpzn_pow2(m_q, cq, rsa_sk->d_q, zq);
   mpzn_pow2(m_p, cp, rsa_sk->d_p, zp);
@@ -357,23 +360,33 @@ void elg_encrypt(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m) {
 void elg_encrypt2(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m, const mpz_t r) {
   mpz_t rq;
   mpz_init( rq );
+  zn_mont_t zp;
+  mont_init( zp, elg_pk->p);
 
-  mpz_mod(rq, r, elg_pk->q);
-  mpzn_pow(c1, elg_pk->g, rq, elg_pk->p);
-  mpzn_pow(c2, elg_pk->key, rq, elg_pk->p);
-  mpz_mul(c2, c2, m);
-  mpz_mod(c2, c2, elg_pk->p);
+  mpzn_mod(rq, r, elg_pk->q);
+  mpzn_pow2(c1, elg_pk->g, rq, zp);
+  mont_mul(c2, elg_pk->key, zp->rho_sqr, zp);
+  mont_pow(c2, c2, rq, zp);
+  mont_mul(rq, m, zp->rho_sqr, zp);
+  mont_mul(c2, c2, rq, zp);
+  mont_mul_ui(c2, c2, 1, zp);
 
+  mont_clear( zp );
   mpz_clear( rq );
 }
 
 void elg_decrypt(mpz_t m, const elg_key_t elg_sk, const mpz_t c1, const mpz_t c2) {
   mpz_t c1_i_x;
+  zn_mont_t zp;
   mpz_init( c1_i_x );
+  mont_init( zp, elg_sk->p );
 
-  mpzn_pow(c1_i_x, c1, elg_sk->i_x, elg_sk->p);
-  mpz_mul(m, c2, c1_i_x);
-  mpz_mod(m, m, elg_sk->p);
+  mont_mul(c1_i_x, c1, zp->rho_sqr, zp);
+  mont_mul(m, c2, zp->rho_sqr, zp);
+  mont_pow(c1_i_x, c1_i_x, elg_sk->i_x, zp);
+  mont_mul(m, m, c1_i_x, zp);
+  mont_mul_ui(m, m, 1, zp);
 
+  mont_clear( zp );
   mpz_clear( c1_i_x );
 }
