@@ -5,5 +5,5 @@ modmul : $(wildcard *.[ch])
 
 all   : modmul
 
-clean : 
+clean :
 	@rm -f core modmul

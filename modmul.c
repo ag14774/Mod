@@ -25,7 +25,7 @@ void stage1() {
   }
 
   rsa_pk_clear(rsa_pk);
-  mpz_clears(N,e,m,c);
+  mpz_clears(N,e,m,c,NULL);
 
 }
 

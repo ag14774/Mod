@@ -11,11 +11,32 @@
 #define WINDOW_SIZE 4
 #define TABLE_SIZE (1<<(WINDOW_SIZE-1)) /*Half the size. Only odd numbers*/
 
+typedef struct {
+  mpz_t N;
+  mpz_t rho_sqr;
+  mp_limb_t omega;
+  int l_n;
+  int w; //BASE=2^w
+} __zn_mont_struct;
+
+typedef __zn_mont_struct zn_mont_t[1];
+
+void mont_init(zn_mont_t out, const mpz_t N);
+void mont_clear(zn_mont_t in);
+void mont_mul(mpz_t out, const mpz_t x, const mpz_t y, const zn_mont_t mont);
+void mont_mul_ui(mpz_t out, const mpz_t x, const mp_limb_t y, const zn_mont_t mont);
+void mont_red(mpz_t out, const mpz_t t, const zn_mont_t mont);
+void mont_pow(mpz_t out, const mpz_t b, const mpz_t e, const zn_mont_t mont);
+
 int mpzn_extract_bits(const mpz_t in, int start, int end);
 void mpzn_add(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N);
 void mpzn_sub(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N);
 void mpzn_mul(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N);
+void mpzn_mul2(mpz_t out, const mpz_t a, const mpz_t b, const zn_mont_t mont);
 void mpzn_pow(mpz_t out, const mpz_t b, const mpz_t e, const mpz_t N);
+void mpzn_pow2(mpz_t out, const mpz_t b, const mpz_t e, const zn_mont_t mont);
+void mpzn_mod(mpz_t out, const mpz_t t, const mpz_t N);
+void mpzn_mod2(mpz_t out, const mpz_t t, const zn_mont_t mont);
 
 /*********************************************/
 
