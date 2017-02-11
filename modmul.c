@@ -12,13 +12,17 @@ void stage1() {
 
   mpz_t N,e,m,c;
   rsa_pk_t rsa_pk;
-  mpz_inits(N,e,m,c,NULL);
+  mpz_inits(N, e, m, c, NULL);
   rsa_pk_init(rsa_pk);
-
+  //mpz_set_str(m, "100", 10);
+  //mpz_set_ui(e, 6);
+  //mpz_set_str(N, "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",10);
+  //umpz_addmul_ui(N, m, 3);
+  //gmp_printf("%Zd x 3 + %d = %Zd\n",m,23,N);
   while(1) {
-    if (gmp_scanf("%ZX\n",N) == EOF) break;
-    gmp_scanf("%ZX\n",e);
-    gmp_scanf("%ZX\n",m);
+    if (!umpz_init_hex_stdin(N)) break;
+    umpz_init_hex_stdin(e);
+    umpz_init_hex_stdin(m);
     rsa_pk_set(rsa_pk, N, e);
     rsa_encrypt(c, rsa_pk, m);
     gmp_printf("%ZX\n",c);
@@ -45,15 +49,15 @@ void stage2() {
   rsa_sk_init(rsa_sk);
 
   while(1) {
-    if (gmp_scanf("%ZX\n",N) == EOF) break;
-    gmp_scanf("%ZX\n",d);
-    gmp_scanf("%ZX\n",p);
-    gmp_scanf("%ZX\n",q);
-    gmp_scanf("%ZX\n",d_p);
-    gmp_scanf("%ZX\n",d_q);
-    gmp_scanf("%ZX\n",i_p);
-    gmp_scanf("%ZX\n",i_q);
-    gmp_scanf("%ZX\n",c);
+    if (!umpz_init_hex_stdin(N)) break;
+    umpz_init_hex_stdin(d);
+    umpz_init_hex_stdin(p);
+    umpz_init_hex_stdin(q);
+    umpz_init_hex_stdin(d_p);
+    umpz_init_hex_stdin(d_q);
+    umpz_init_hex_stdin(i_p);
+    umpz_init_hex_stdin(i_q);
+    umpz_init_hex_stdin(c);
     rsa_sk_set(rsa_sk, N, d, p, q, d_p, d_q, i_p, i_q);
     rsa_decrypt(m, rsa_sk, c);
     gmp_printf("%ZX\n",m);
@@ -82,11 +86,11 @@ void stage3(char test) {
   elg_key_init(elg_pk);
 
   while(1) {
-    if (gmp_scanf("%ZX\n",p) == EOF) break;
-    gmp_scanf("%ZX\n",q);
-    gmp_scanf("%ZX\n",g);
-    gmp_scanf("%ZX\n",h);
-    gmp_scanf("%ZX\n",m);
+    if (!umpz_init_hex_stdin(p)) break;
+    umpz_init_hex_stdin(q);
+    umpz_init_hex_stdin(g);
+    umpz_init_hex_stdin(h);
+    umpz_init_hex_stdin(m);
     elg_key_set(elg_pk, p, q, g, h);
     if ( test )
       elg_encrypt2(c1, c2, elg_pk, m, test_r);
@@ -116,12 +120,12 @@ void stage4() {
   elg_key_init(elg_sk);
 
   while(1) {
-    if (gmp_scanf("%ZX\n",p) == EOF) break;
-    gmp_scanf("%ZX\n",q);
-    gmp_scanf("%ZX\n",g);
-    gmp_scanf("%ZX\n",x);
-    gmp_scanf("%ZX\n",c1);
-    gmp_scanf("%ZX\n",c2);
+    if (!umpz_init_hex_stdin(p)) break;
+    umpz_init_hex_stdin(q);
+    umpz_init_hex_stdin(g);
+    umpz_init_hex_stdin(x);
+    umpz_init_hex_stdin(c1);
+    umpz_init_hex_stdin(c2);
     elg_key_set(elg_sk, p, q, g, x);
     elg_decrypt(m, elg_sk, c1, c2);
     gmp_printf("%ZX\n",m);

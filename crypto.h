@@ -8,6 +8,7 @@
 #include <string.h>
 #include    <gmp.h>
 
+#define BITS_PER_LIMB (sizeof(mp_limb_t) * 8)
 #define WINDOW_SIZE 4
 #define TABLE_SIZE (1<<(WINDOW_SIZE-1)) /*Half the size. Only odd numbers*/
 
@@ -20,6 +21,19 @@ typedef struct {
 } __zn_mont_struct;
 
 typedef __zn_mont_struct zn_mont_t[1];
+
+int umpz_init_hex(mpz_t op, const unsigned char* str, const int length);
+int umpz_init_hex_stdin(mpz_t op);
+void umpz_mul(mpz_t out, const mpz_t a, const mpz_t b);
+void umpz_mul_ui(mpz_t out, const mpz_t a, const mp_limb_t b);
+void umpz_add(mpz_t out, const mpz_t a, const mpz_t b);
+//void umpz_add_ui(mpz_t out, const mpz_t a, const mpz_t b);
+void umpz_sub(mpz_t out, const mpz_t a, const mpz_t b);
+//void umpz_sub_ui(mpz_t out, const mpz_t a, const mpz_t b);
+void umpz_addmul_ui(mpz_t out, const mpz_t a, mp_limb_t b);
+void umpzn_limbrshift(mpz_t out, const mpz_t a, int i);
+void umpzn_limblshift(mpz_t out, const mpz_t a, int i);
+int umpz_cmp(const mpz_t a, const mpz_t b);
 
 void mont_init(zn_mont_t out, const mpz_t N);
 void mont_clear(zn_mont_t in);
@@ -37,6 +51,7 @@ void mpzn_pow(mpz_t out, const mpz_t b, const mpz_t e, const mpz_t N);
 void mpzn_pow2(mpz_t out, const mpz_t b, const mpz_t e, const zn_mont_t mont);
 void mpzn_mod(mpz_t out, const mpz_t t, const mpz_t N);
 void mpzn_mod2(mpz_t out, const mpz_t t, const zn_mont_t mont);
+
 
 /*********************************************/
 

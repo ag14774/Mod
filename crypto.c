@@ -1,10 +1,203 @@
 #include "crypto.h"
 
+static size_t get_hex_line(unsigned char *buff, size_t buff_size) {
+  size_t counter = 0;
+  char *res = fgets((char*)buff, buff_size, stdin);
+  while(res) {
+    if(*res <= '9' && *res >= '0') {
+      *res = *res - '0';
+      counter++;
+      res++;
+    }
+    else if(*res <= 'F' && *res >= 'A') {
+      *res = *res - 'A' + 10;
+      counter++;
+      res++;
+    }
+    else if(*res <= 'f' && *res >= 'a') {
+      *res = *res - 'a' + 10;
+      counter++;
+      res++;
+    }
+    else {
+      *res = '\0';
+      return counter;
+    }
+  }
+  return counter;
+}
+
+static int mpn_lop( const mp_limb_t* x, int l_x ) {
+  while( ( l_x > 1 ) && ( x[ l_x - 1 ] == 0 ) ) {
+    l_x--;
+  }
+  return l_x;
+}
+
+int umpz_init_hex_stdin(mpz_t op) {
+  unsigned char buff[1024];
+  buff[0]='\0';
+  int len = get_hex_line(buff, 1024);
+  return umpz_init_hex(op, buff, len);
+}
+
+int umpz_init_hex(mpz_t op, const unsigned char* str, const int length) {
+  unsigned int bits = length * 4 + BITS_PER_LIMB; //Because it's hex + one extra limb
+  if((op->_mp_alloc*BITS_PER_LIMB) < bits)
+    mpz_realloc2(op, bits);
+  memset(op->_mp_d, 0, bits>>3);
+  int r=0;
+  if(length > 0) {
+    mpn_set_str(op->_mp_d, str, length, 16);
+    r=1;
+  }
+  op->_mp_size = mpn_lop( op->_mp_d, 1+length/(sizeof(mp_limb_t)<<1) );
+  //gmp_printf("%ZX\n",op);
+  return r;
+}
+
+void umpz_mul(mpz_t out, const mpz_t a, const mpz_t b) {
+  mp_limb_t *temp = out->_mp_d;
+  int total_limbs = a->_mp_size + b->_mp_size;
+  if(total_limbs > out->_mp_alloc) {
+    mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+    temp = out->_mp_d;
+  }
+  if(a->_mp_d == out->_mp_d || b->_mp_d == out->_mp_d) {
+    temp = (mp_limb_t*)malloc(sizeof(mp_limb_t) * total_limbs);
+  }
+  if(umpz_cmp(a,b) >= 0) {
+    mpn_mul(temp, a->_mp_d, a->_mp_size, b->_mp_d, b->_mp_size);
+  }
+  else {
+    mpn_mul(temp, b->_mp_d, b->_mp_size, a->_mp_d, a->_mp_size);
+  }
+  out->_mp_size = mpn_lop(temp, total_limbs);
+  if( temp != out->_mp_d ) {
+    memcpy(out->_mp_d, temp, out->_mp_size * sizeof(mp_limb_t));
+    free(temp);
+  }
+}
+
+void umpz_mul_ui(mpz_t out, const mpz_t a, const mp_limb_t b) {
+  int total_limbs = a->_mp_size + 1;
+  if(total_limbs > out->_mp_alloc) {
+    mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+  }
+  mp_limb_t carry = mpn_mul_1(out->_mp_d, a->_mp_d, a->_mp_size, b);
+  out->_mp_d[total_limbs - 1] = carry;
+  out->_mp_size = mpn_lop(out->_mp_d, total_limbs);
+}
+
+void umpz_add(mpz_t out, const mpz_t a, const mpz_t b) {
+  int total_limbs;
+  if(umpz_cmp(a, b) >= 0) {
+    total_limbs = a->_mp_size + 1;
+    if(total_limbs > out->_mp_alloc) {
+      mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+    }
+    out->_mp_d[total_limbs - 1] = mpn_add(out->_mp_d, a->_mp_d, a->_mp_size,
+                                                      b->_mp_d, b->_mp_size);
+
+  }
+  else {
+    total_limbs = b->_mp_size + 1;
+    if(total_limbs > out->_mp_alloc) {
+      mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+    }
+    out->_mp_d[total_limbs - 1] = mpn_add(out->_mp_d, b->_mp_d, b->_mp_size,
+                                                      a->_mp_d, a->_mp_size);
+  }
+  out->_mp_size = mpn_lop( out->_mp_d, total_limbs);
+}
+
+//void umpz_add_ui(mpz_t out, const mpz_t a, const mpz_t b) {}
+
+void umpz_sub(mpz_t out, const mpz_t a, const mpz_t b) {
+  int total_limbs = a->_mp_size;
+  if(total_limbs > out->_mp_alloc) {
+    mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+  }
+  mpn_sub(out->_mp_d, a->_mp_d, a->_mp_size, b->_mp_d, b->_mp_size);
+  out->_mp_size = mpn_lop( out->_mp_d, total_limbs );
+}
+
+//void umpz_sub_ui(mpz_t out, const mpz_t a, const mpz_t b) {}
+
+void umpz_addmul_ui(mpz_t out, const mpz_t a, mp_limb_t b) {
+
+  int total_limbs = (a->_mp_size > out->_mp_size) ? (a->_mp_size) : (out->_mp_size);
+  total_limbs++;
+  if(total_limbs > out->_mp_alloc) {
+    mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+  }
+  if(out->_mp_size < a->_mp_size) {
+    memset(&out->_mp_d[out->_mp_size], 0, sizeof(mp_limb_t)*(a->_mp_size - out->_mp_size));
+  }
+  mp_limb_t carry = mpn_addmul_1(out->_mp_d, a->_mp_d, a->_mp_size, b);
+  if(out->_mp_size <= a->_mp_size) {
+    out->_mp_d[a->_mp_size] = carry;
+  }
+  else {
+    carry = mpn_add_1(&out->_mp_d[a->_mp_size], &out->_mp_d[a->_mp_size],
+                       out->_mp_size - a->_mp_size, carry);
+    out->_mp_d[out->_mp_size] = carry;
+  }
+  out->_mp_size = mpn_lop(out->_mp_d, total_limbs);
+
+  //mpz_addmul_ui(out, a, b);
+}
+
+void umpzn_limbrshift(mpz_t out, const mpz_t a, int i) {
+  int total_limbs = a->_mp_size - i;
+
+  if(total_limbs <= 0) {
+    out->_mp_d[0] = 0;
+    out->_mp_size = 1;
+  }
+  else {
+    if(total_limbs > out->_mp_alloc) {
+      mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+    }
+    for(int k=i;k<a->_mp_size;k++) {
+      out->_mp_d[k-i] = a->_mp_d[k];
+    }
+    out->_mp_size = total_limbs;
+  }
+
+}
+
+void umpzn_limblshift(mpz_t out, const mpz_t a, int i) {
+  int total_limbs = a->_mp_size + i;
+  if(total_limbs > out->_mp_alloc) {
+    mpz_realloc2(out, total_limbs * BITS_PER_LIMB);
+  }
+  for(int k=a->_mp_size-1;k>=0;k--) {
+    out->_mp_d[k+i] = a->_mp_d[k];
+  }
+  for(int k=0;k<i;k++) {
+    out->_mp_d[k] = 0;
+  }
+  out->_mp_size = total_limbs;
+}
+
+int umpz_cmp(const mpz_t a, const mpz_t b) {
+  if(a->_mp_size>b->_mp_size) {
+    return 1;
+  }
+  else if(a->_mp_size<b->_mp_size) {
+    return -1;
+  }
+  else {
+    return mpn_cmp(a->_mp_d,b->_mp_d,a->_mp_size);
+  }
+}
+
 void mont_init(zn_mont_t out, const mpz_t N) {
   mpz_init_set(out->N, N);
   mpz_init_set_ui(out->rho_sqr, 1);
   out->l_n = (out->N)->_mp_size;
-  out->w = sizeof(mp_limb_t)*8;
+  out->w = BITS_PER_LIMB;
   out->omega = 1;
   for(int i = 0; i < (out->w-1); i++) {
     out->omega = out->omega * out->omega * (out->N)->_mp_d[0];
@@ -30,13 +223,13 @@ void mont_mul(mpz_t out, const mpz_t x, const mpz_t y, const zn_mont_t mont) {
     mp_limb_t temp_0 = mpz_getlimbn(temp, 0);
     mp_limb_t x_0 = mpz_getlimbn(x, 0);
     u = (temp_0 + y_i * x_0) * mont->omega;
-    mpz_addmul_ui(temp, x, y_i);
-    mpz_addmul_ui(temp, mont->N, u);
-    mpz_tdiv_q_2exp(temp, temp, mont->w);
+    umpz_addmul_ui(temp, x, y_i);
+    umpz_addmul_ui(temp, mont->N, u);
+    umpzn_limbrshift(temp, temp, 1);
     //mpz_divexact_ui(temp, temp, 1<<mont->w);
   }
-  if (mpz_cmp(temp, mont->N) > 0) {
-    mpz_sub(temp, temp, mont->N);
+  if (umpz_cmp(temp, mont->N) > 0) {
+    umpz_sub(temp, temp, mont->N);
   }
 
   mpz_set(out, temp);
@@ -52,19 +245,19 @@ void mont_mul_ui(mpz_t out, const mpz_t x, const mp_limb_t y, const zn_mont_t mo
   mp_limb_t x_0 = mpz_getlimbn(x, 0);
 
   u = (temp_0 + y * x_0) * mont->omega;
-  mpz_addmul_ui(temp, x, y);
-  mpz_addmul_ui(temp, mont->N, u);
-  mpz_tdiv_q_2exp(temp, temp, mont->w);
+  umpz_addmul_ui(temp, x, y);
+  umpz_addmul_ui(temp, mont->N, u);
+  umpzn_limbrshift(temp, temp, 1);
   for(int i = 1; i < mont->l_n; i++) {
     temp_0 = mpz_getlimbn(temp, 0);
     x_0 = mpz_getlimbn(x, 0);
     u = temp_0 * mont->omega;
-    mpz_addmul_ui(temp, mont->N, u);
-    mpz_tdiv_q_2exp(temp, temp, mont->w);
+    umpz_addmul_ui(temp, mont->N, u);
+    umpzn_limbrshift(temp, temp, 1);
     //mpz_divexact_ui(temp, temp, 1<<mont->w);
   }
-  if (mpz_cmp(temp, mont->N) >= 0) {
-    mpz_sub(temp, temp, mont->N);
+  if (umpz_cmp(temp, mont->N) >= 0) {
+    umpz_sub(temp, temp, mont->N);
   }
 
   mpz_set(out, temp);
@@ -73,26 +266,22 @@ void mont_mul_ui(mpz_t out, const mpz_t x, const mp_limb_t y, const zn_mont_t mo
 
 void mont_red(mpz_t out, const mpz_t t, const zn_mont_t mont) {
   mp_limb_t u;
-  mpz_t temp, temp2, base_i, base;
+  mpz_t temp, temp2;
   mpz_init_set( temp, t );
-  mpz_init( temp2 );
-  mpz_init_set_ui( base, 1);
-  mpz_init_set_ui( base_i, 1);
-  mpz_mul_2exp(base, base, mont->w);
+  mpz_init_set( temp2, mont->N );
 
   for(int i = 0; i < mont->l_n; i++) {
     mp_limb_t temp_i = mpz_getlimbn(temp, i);
     u = temp_i * mont->omega;
-    mpz_mul( temp2, mont->N, base_i);
-    mpz_addmul_ui(temp, temp2, u);
-    mpz_mul( base_i, base_i, base );
+    umpz_addmul_ui(temp, temp2, u);
+    umpzn_limblshift( temp2, temp2, 1);
   }
-  mpz_divexact( temp, temp, base_i );
-  if (mpz_cmp(temp, mont->N) >= 0) {
-    mpz_sub(temp, temp, mont->N);
+  umpzn_limbrshift( temp, temp, mont->l_n );
+  if (umpz_cmp(temp, mont->N) >= 0) {
+    umpz_sub(temp, temp, mont->N);
   }
   mpz_set(out, temp);
-  mpz_clears(temp, temp2, base_i, base, NULL);
+  mpz_clears(temp, temp2, NULL);
 }
 
 void mont_pow(mpz_t out, const mpz_t b, const mpz_t e, const zn_mont_t mont) {
@@ -157,20 +346,20 @@ int mpzn_extract_bits(const mpz_t in, int start, int end) {
 }
 
 void mpzn_add(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N) {
-  mpz_add(out,a,b);
-  if(mpz_cmp(out,N) >= 0) {
-    mpz_sub(out, out, N);
+  umpz_add(out,a,b);
+  if(umpz_cmp(out,N) >= 0) {
+    umpz_sub(out, out, N);
   }
 }
 
 void mpzn_sub(mpz_t out, const mpz_t a, const mpz_t b, const mpz_t N) {
 
-  if(mpz_cmp(b,a) > 0) {
-    mpz_sub(out, b, a);
-    mpz_sub(out, N, out);
+  if(umpz_cmp(b,a) > 0) {
+    umpz_sub(out, b, a);
+    umpz_sub(out, N, out);
   }
   else {
-    mpz_sub(out, a, b);
+    umpz_sub(out, a, b);
   }
 
 }
@@ -344,7 +533,7 @@ void elg_key_set(elg_key_t elg_key, const mpz_t p, const mpz_t q,
   mpz_set(elg_key->q, q);
   mpz_set(elg_key->g, g);
   mpz_set(elg_key->key, key);
-  mpz_sub(elg_key->i_x, q, key);
+  umpz_sub(elg_key->i_x, q, key);
 }
 
 void elg_encrypt(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m) {
