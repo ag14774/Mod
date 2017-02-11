@@ -14,11 +14,7 @@ void stage1() {
   rsa_pk_t rsa_pk;
   mpz_inits(N, e, m, c, NULL);
   rsa_pk_init(rsa_pk);
-  //mpz_set_str(m, "100", 10);
-  //mpz_set_ui(e, 6);
-  //mpz_set_str(N, "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",10);
-  //umpz_addmul_ui(N, m, 3);
-  //gmp_printf("%Zd x 3 + %d = %Zd\n",m,23,N);
+
   while(1) {
     if (!umpz_init_hex_stdin(N)) break;
     umpz_init_hex_stdin(e);
