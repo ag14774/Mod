@@ -2,6 +2,7 @@
 #define __CRYPTO_H
 
 #include  <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdarg.h>
 
@@ -51,6 +52,9 @@ void mpzn_pow(mpz_t out, const mpz_t b, const mpz_t e, const mpz_t N);
 void mpzn_pow2(mpz_t out, const mpz_t b, const mpz_t e, const zn_mont_t mont);
 void mpzn_mod(mpz_t out, const mpz_t t, const mpz_t N);
 void mpzn_mod2(mpz_t out, const mpz_t t, const zn_mont_t mont);
+
+void rdrand_get_n_bytes( unsigned int n, unsigned char *dest );
+void seed_state(gmp_randstate_t state);
 
 
 /*********************************************/
@@ -104,7 +108,7 @@ void elg_key_init2(elg_key_t elg_key, mp_bitcnt_t n);
 void elg_key_clear(elg_key_t elg_key);
 void elg_key_set(elg_key_t elg_key, const mpz_t p, const mpz_t q,
                                     const mpz_t g, const mpz_t key);
-void elg_encrypt(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m);
+void elg_encrypt(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m, gmp_randstate_t state);
 void elg_encrypt2(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m, const mpz_t r);
 void elg_decrypt(mpz_t m, const elg_key_t elg_sk, const mpz_t c1, const mpz_t c2);
 

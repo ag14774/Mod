@@ -80,6 +80,9 @@ void stage3(char test) {
   elg_key_t elg_pk;
   mpz_inits(p, q, g, h, m, c1, c2, NULL);
   elg_key_init(elg_pk);
+  gmp_randstate_t rand_state;
+  gmp_randinit_mt(rand_state);
+  seed_state(rand_state);
 
   while(1) {
     if (!umpz_init_hex_stdin(p)) break;
@@ -88,15 +91,19 @@ void stage3(char test) {
     umpz_init_hex_stdin(h);
     umpz_init_hex_stdin(m);
     elg_key_set(elg_pk, p, q, g, h);
-    if ( test )
+    if ( test ) {
       elg_encrypt2(c1, c2, elg_pk, m, test_r);
-    else
-      elg_encrypt(c1, c2, elg_pk, m);
+    }
+    else {
+      elg_encrypt(c1, c2, elg_pk, m, rand_state);
+    }
     gmp_printf("%ZX\n%ZX\n",c1,c2);
   }
 
+
   mpz_clears(p, q, g, h, m, c1, c2, test_r, NULL);
   elg_key_clear(elg_pk);
+  //gmp_randclear(rand_state);
 
 }
 

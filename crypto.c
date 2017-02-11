@@ -1,6 +1,7 @@
 #include "crypto.h"
+#include "sha256.h"
 
-static size_t get_hex_line(unsigned char *buff, size_t buff_size) {
+static inline size_t get_hex_line(unsigned char *buff, size_t buff_size) {
   size_t counter = 0;
   char *res = fgets((char*)buff, buff_size, stdin);
   while(res) {
@@ -27,7 +28,7 @@ static size_t get_hex_line(unsigned char *buff, size_t buff_size) {
   return counter;
 }
 
-static int mpn_lop( const mp_limb_t* x, int l_x ) {
+static inline int mpn_lop( const mp_limb_t* x, int l_x ) {
   while( ( l_x > 1 ) && ( x[ l_x - 1 ] == 0 ) ) {
     l_x--;
   }
@@ -424,6 +425,62 @@ void mpzn_mod2(mpz_t out, const mpz_t t, const zn_mont_t mont) {
 
 }
 
+int _rdrand64_step(uint64_t *r) {
+  unsigned char success;
+
+  asm( "rdrand %0 ; setc %1"
+       : "=r" (*r), "=qm" (success) );
+
+  return (int) success;
+}
+
+uint64_t _rdrand64_retry() {
+  uint64_t r;
+  while(1) {
+    if( _rdrand64_step( &r ) ) {
+      return r;
+    }
+  }
+  return 0;
+}
+
+void rdrand_get_n_bytes( unsigned int n, unsigned char *dest ) {
+  uint32_t i;
+  for(i=0;i<n;i+=8) {
+    uint64_t rand64 = _rdrand64_retry();
+    unsigned char* bytes = (unsigned char*)&rand64;
+    for(uint j=0;j<8 && j<n;j++) {
+      dest[i+j] = bytes[j];
+    }
+  }
+}
+
+void seed_state(gmp_randstate_t state) {
+  unsigned char rand_data[32];
+  unsigned char hash[32];
+  SHA256_CTX ctx;
+  sha256_init(&ctx);
+
+  rdrand_get_n_bytes(32, rand_data);
+  sha256_update(&ctx, rand_data, 32);
+
+  FILE* file = fopen("/dev/urandom", "r");
+
+  fread(rand_data, 32, sizeof(unsigned char), file);
+  fclose(file);
+  sha256_update(&ctx, rand_data, 32);
+
+  sha256_final(&ctx, hash);
+
+  mpz_t seed;
+  mpz_init2(seed, 256);
+  mpz_import(seed, 32, 1, sizeof(hash[0]), 0, 0, hash);
+  gmp_randseed(state, seed);
+  mpz_clear(seed);
+  //gmp_randclear(state);
+
+}
+
 void rsa_pk_init(rsa_pk_t rsa_pk) {
   mpz_inits(rsa_pk->N, rsa_pk->e, NULL);
 }
@@ -533,11 +590,11 @@ void elg_key_set(elg_key_t elg_key, const mpz_t p, const mpz_t q,
   umpz_sub(elg_key->i_x, q, key);
 }
 
-void elg_encrypt(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m) {
+void elg_encrypt(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m, gmp_randstate_t state) {
   mpz_t r;
-  mpz_init( r );
+  mpz_init2( r, 256 );
 
-  // generate randomness
+  mpz_urandomm(r, state, elg_pk->q);
   elg_encrypt2(c1, c2, elg_pk, m, r);
 
   mpz_clear( r );
