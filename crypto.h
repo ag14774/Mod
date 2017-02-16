@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include    <gmp.h>
+#include "gmp_additions.h"
 
 #define BITS_PER_LIMB (sizeof(mp_limb_t) * 8)
 #define WINDOW_SIZE 4

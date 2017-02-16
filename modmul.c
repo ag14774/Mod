@@ -103,7 +103,7 @@ void stage3(char test) {
 
   mpz_clears(p, q, g, h, m, c1, c2, test_r, NULL);
   elg_key_clear(elg_pk);
-  //gmp_randclear(rand_state);
+  gmp_randclear(rand_state);
 
 }
 

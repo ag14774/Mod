@@ -425,10 +425,31 @@ void mpzn_mod2(mpz_t out, const mpz_t t, const zn_mont_t mont) {
 
 }
 
+void _call_cpuid(uint level, uint sublevel, uint* eax, uint* ebx, uint* ecx, uint* edx) {
+  asm volatile( "mov %4, %%eax\n\t"
+                "mov %5, %%ebx\n\t"
+                "cpuid\n\t"
+                "mov %%eax, %0\n\t"
+                "mov %%ebx, %1\n\t"
+                "mov %%ecx, %2\n\t"
+                "mov %%edx, %3\n\t"
+              : "=r" (*eax), "=r" (*ebx), "=r" (*ecx), "=r" (*edx)
+              : "r" (level), "r" (sublevel)
+              : "eax", "ebx", "ecx", "edx");
+}
+
+int _supports_rdrand() {
+  const unsigned int flag_RDRAND = (1<<30);
+
+  unsigned int eax, ebx, ecx, edx;
+  _call_cpuid(1, 0, &eax, &ebx, &ecx, &edx);
+  return ((ecx & flag_RDRAND) == flag_RDRAND);
+}
+
 int _rdrand64_step(uint64_t *r) {
   unsigned char success;
 
-  asm( "rdrand %0 ; setc %1"
+  asm volatile( "rdrand %0 ; setc %1"
        : "=r" (*r), "=qm" (success) );
 
   return (int) success;
@@ -461,8 +482,10 @@ void seed_state(gmp_randstate_t state) {
   SHA256_CTX ctx;
   sha256_init(&ctx);
 
-  rdrand_get_n_bytes(32, rand_data);
-  sha256_update(&ctx, rand_data, 32);
+  if(_supports_rdrand()) {
+    rdrand_get_n_bytes(32, rand_data);
+    sha256_update(&ctx, rand_data, 32);
+  }
 
   FILE* file = fopen("/dev/urandom", "r");
 
@@ -477,7 +500,6 @@ void seed_state(gmp_randstate_t state) {
   mpz_import(seed, 32, 1, sizeof(hash[0]), 0, 0, hash);
   gmp_randseed(state, seed);
   mpz_clear(seed);
-  //gmp_randclear(state);
 
 }
 
@@ -578,7 +600,7 @@ void elg_key_init2(elg_key_t elg_key, mp_bitcnt_t n) {
 }
 
 void elg_key_clear(elg_key_t elg_key) {
-  mpz_clears(elg_key->p, elg_key->q, elg_key->g, elg_key->key, NULL);
+  mpz_clears(elg_key->p, elg_key->q, elg_key->g, elg_key->key, elg_key->i_x, NULL);
 }
 
 void elg_key_set(elg_key_t elg_key, const mpz_t p, const mpz_t q,
@@ -587,7 +609,8 @@ void elg_key_set(elg_key_t elg_key, const mpz_t p, const mpz_t q,
   mpz_set(elg_key->q, q);
   mpz_set(elg_key->g, g);
   mpz_set(elg_key->key, key);
-  umpz_sub(elg_key->i_x, q, key);
+  if(umpz_cmp(q,key) >= 0)
+    umpz_sub(elg_key->i_x, q, key);
 }
 
 void elg_encrypt(mpz_t c1, mpz_t c2, const elg_key_t elg_pk, const mpz_t m, gmp_randstate_t state) {
